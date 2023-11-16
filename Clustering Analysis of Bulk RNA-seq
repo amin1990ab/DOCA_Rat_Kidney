@@ -1,0 +1,14 @@
+# DOCA_Rat_Kidney
+library(cluster)
+library(factoextra)
+library(tidyverse)
+--------------------Load 991 samples with 111 genes of the iPT trajectory gene signature----------------------
+data = read.table("iPT_GS.txt", header=TRUE, row.names=1)
+data= scale (data)
+fviz_nbclust(data, kmeans, method = "silhouette")
+d <- dist(data, method = "euclidean") # distance matrix
+fit <- hclust(d, method="ward")
+plot(fit)
+groups <- cutree(fit, k=3)
+data.total.followup = data.frame (data, groups)
+write.csv (data, file = " data.total.followup.csv")
