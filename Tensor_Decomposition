@@ -1,0 +1,44 @@
+# DOCA_Rat_Kidney
+library (Seurat)
+library(scITD)
+library (Seurat)
+library (dplyr)
+library (ggplot2)
+library (harmony)
+library (patchwork)
+-----------------Load snRNA-seq dataset and extract counts and metadat-----------------------
+Rat.RNA = readRDS ("Rat.RNA.rds")
+counts <- GetAssayData(Rat.RNA, assay = 'RNA', slot = 'counts')
+metadata <- Rat.RNA@meta.data #Change all the metadata to "Factor"
+param_list <- initialize_params(ctypes_use = c("Endo", "Fibroblast", "MyoFib", "Podo", "PCT", "PST", "iPT", "Prolif_Tubule", "LOH", "DCT", "PC", "IC_A", "IC_B", "Lymphocyte", "Mono", "Mac" ),
+                                ncores = 30, rand_seed = 10)
+Rat_container <- make_new_container(count_data=counts, 
+meta_data=metadata,
+params=param_list,
+label_donor_sex = FALSE)
+Rat_container <- form_tensor(Rat_container, donor_min_cells=5,
+                              norm_method='trim', scale_factor=10000,
+                              vargenes_method='norm_var_pvals', vargenes_thresh=.1,
+                              scale_var = TRUE, var_scale_power = 2)
+print(length(Rat_container[["all_vargenes"]]))
+Rat_container <- run_tucker_ica(Rat_container, ranks=c(5,10),
+                                 tucker_type = 'regular', rotation_type = 'hybrid')
+Rat_container <- get_meta_associations(Rat_container, vars_test=c('SBP','DBP', 'Sodium', 'BUN', 'Creatinine', 'Hematocrit'), stat_use='pval')
+Rat_container <- plot_donor_matrix(Rat_container, meta_vars=c('SBP','DBP', 'Sodium', 'BUN', 'Creatinine', 'Hematocrit'),
+                                    show_donor_ids = TRUE,
+                                    add_meta_associations='pval')
+Rat_container$plots$donor_matrix
+Rat_container <- get_lm_pvals(Rat_container)
+Rat_container <- get_all_lds_factor_plots(Rat_container, 
+                                           use_sig_only=TRUE,
+                                           nonsig_to_zero=TRUE,
+                                           sig_thresh=.02,
+                                           display_genes=FALSE,
+                                           gene_callouts = TRUE,
+                                           callout_n_gene_per_ctype=3,
+                                           show_var_explained = TRUE)
+myfig <- render_multi_plots(Rat_container,data_type='loadings')
+saveRDS (Rat_container, file = "Rat_container.rds")
+
+
+                                           
