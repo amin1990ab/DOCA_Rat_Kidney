@@ -1,0 +1,76 @@
+# DOCA_Rat_Kidney
+library (Seurat)
+library (dplyr)
+library (ggplot2)
+library (harmony)
+library (patchwork)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(WGCNA)
+library(hdWGCNA)
+theme_set(theme_cowplot())
+set.seed(12345)
+Rat.RNA = readRDS ("Rat.RNA.rds")
+Rat.RNA <- SetupForWGCNA(
+  Rat.RNA,
+  gene_select = "fraction", # the gene selection approach
+  fraction = 0.05, # fraction of cells that a gene needs to be expressed in order to be included
+  wgcna_name = "Rat" # the name of the hdWGCNA experiment
+)
+-------------Meta Cells on all samples-------------------
+Rat.RNA <- MetacellsByGroups(
+  seurat_obj = Rat.RNA,
+  group.by = c("Idents", "orig.ident"), # specify the columns in seurat_obj@meta.data to group by
+  reduction = 'harmony', # select the dimensionality reduction to perform KNN on
+  k = 25, # nearest-neighbors parameter
+  max_shared = 10, # maximum number of shared cells between two metacells
+  ident.group = 'cell_type' # set the Idents of the metacell seurat object
+)
+Rat.RNA  <- NormalizeMetacells(Rat.RNA )
+
+--------------------Run WGCNA for PST, PC, and iPT---------------------------------------
+#The pipeline for PST is shown
+
+Rat.RNA.Metacells.PST <- SetDatExpr(
+  Rat.RNA ,
+  group_name = "PST", # Repeat this step for PC and iPT
+  group.by='cell_type', # the metadata column containing the cell type info. This same column should have also been used in MetacellsByGroups
+  assay = 'RNA', # using RNA assay
+  slot = 'data' # using normalized data
+)
+
+Rat.RNA.Metacells.PST = readRDS ("Rat.RNA.Metacells.PST.11.11.2022.rds")
+Rat.RNA.Metacells.PST <- ConstructNetwork(
+  Rat.RNA.Metacells.PST, soft_power=8,
+  setDatExpr=FALSE,
+  tom_name = 'PST' # name of the topoligical overlap matrix written to disk
+)
+pdf("Rat.RNA.Metacells.PST.Dendrogram.11.13.2022.pdf", width=6, height=4)
+PlotDendrogram(Rat.RNA.Metacells.PST, main='PST hdWGCNA Dendrogram')
+dev.off ()
+TOM <- GetTOM(Rat.RNA.Metacells.PST)
+Rat.RNA.Metacells.PST <- ScaleData(Rat.RNA.Metacells.PST, features=VariableFeatures(Rat.RNA.Metacells.PST))
+Rat.RNA.Metacells.PST <- ModuleEigengenes(
+  Rat.RNA.Metacells.PST,
+  group.by.vars="orig.ident"
+)
+hMEs <- GetMEs(Rat.RNA.Metacells.PST)
+write.csv (hMEs, file = "hMEs.PST.11.13.2022.csv")
+MEs <- GetMEs(Rat.RNA.Metacells.PST, harmonized=FALSE)
+write.csv (MEs, file = "MEs.PST.11.13.2022.csv")
+Rat.RNA.Metacells.PST <- ModuleConnectivity(
+  Rat.RNA.Metacells.PST,
+  group.by = 'Idents', group_name = 'PST'
+)
+Rat.RNA.Metacells.PST <- ResetModuleNames(
+  Rat.RNA.Metacells.PST,
+  new_name = "PST-M"
+)
+p <- PlotKMEs(Rat.RNA.Metacells.PST, ncol=5)
+pdf("Rat.RNA.Metacells.PST.Modules.11.13.2022.pdf", width=6, height=4)
+p
+dev.off ()
+modules <- GetModules(Rat.RNA.Metacells.PST)
+write.csv (modules, file = "modules.PST.11.13.2022.csv")
+saveRDS (Rat.RNA.Metacells.PST, file = "Rat.RNA.Metacells.PST.Def.11.13.2022.rds")
